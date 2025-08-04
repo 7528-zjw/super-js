@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>自定义视频播放器</title>
+    <style>
+        /* 播放器容器样式 */
+        #video-container {
+            width: 800px;
+            margin: 20px auto;
+            position: relative;
+        }
+        
+        /* 长按弹窗样式 - 可修改这里的中文相关样式 */
+        .evp-popup {
+            position: fixed;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-radius: 8px; /* 圆角大小 */
+            padding: 15px;
+            z-index: 10000;
+            font-family: "Microsoft YaHei", sans-serif; /* 中文字体 */
+            min-width: 200px;
+        }
+        
+        .evp-popup button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .evp-popup button:hover {
+            background: #e0e0e0;
+        }
+        
+        .evp-input-group {
+            margin: 10px 0;
+            padding: 10px 0;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .evp-input-group input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <video controls width="100%" src="https://example.com/sample.mp4"></video>
+    </div>
+
+    <script>
+        /**
+         * 高性能视频播放器增强库
+         * 功能：长按菜单、画质切换等
+         */
+        class EnhancedVideoPlayer {
+            constructor(options) {
+                // 默认配置（修改这里的中文显示内容）
+                this.options = {
+                    videoElement: null,
+                    longPress: {
+                        enable: true,
+                        buttons: [
+                            { text: "百度官网", url: "https://www.baidu.com" }, // 修改按钮文字和链接
+                            { text: "视频帮助", url: "https://help.baidu.com" },
+                            { text: "用户反馈", url: "https://feedback.baidu.com" }
+                        ],
+                        inputPlaceholder: "请输入跳转链接...", // 输入框提示文字
+                        timeout: 800 // 长按触发时间(毫秒)
+                    },
+                    ...options
+                };
+
+                this.init();
+            }
+
+            // 初始化
+            init() {
+                this.setupVideoElement();
+                if (this.options.longPress.enable) {
+                    this.setupLongPress();
+                }
+                this.injectStyles(); // 注入CSS样式
+            }
+
+            // 获取视频元素
+            setupVideoElement() {
+                this.video = this.options.videoElement || document.querySelector('video');
+                if (!this.video) {
+                    console.error('未找到视频元素');
+                    return;
+                }
+            }
+
+            // 设置长按事件
+            setupLongPress() {
+                let pressTimer;
+                const { timeout } = this.options.longPress;
+
+                // 触摸/鼠标按下
+                this.video.addEventListener('pointerdown', (e) => {
+                    pressTimer = setTimeout(() => this.showPopup(e), timeout);
+                });
+
+                // 清理计时器
+                const clearPressTimer = () => {
+                    if (pressTimer) {
+                        clearTimeout(pressTimer);
+                        pressTimer = null;
+                    }
+                };
+
+                // 触摸/鼠标释放
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach(event => {
+                    this.video.addEventListener(event, clearPressTimer);
+                });
+            }
+
+            // 显示弹窗（核心UI部分 - 修改这里的中文内容）
+            showPopup(event) {
+                const { buttons, inputPlaceholder } = this.options.longPress;
+                
+                // 创建弹窗容器
+                const popup = document.createElement('div');
+                popup.className = 'evp-popup';
+                
+                // 添加预设按钮
+                buttons.forEach(btn => {
+                    const button = document.createElement('button');
+                    button.textContent = btn.text;
+                    button.addEventListener('click', () => {
+                        if (btn.url) window.open(btn.url);
+                        this.hidePopup();
+                    });
+                    popup.appendChild(button);
+                });
+
+                // 添加输入框区域
+                const inputGroup = document.createElement('div');
+                inputGroup.className = 'evp-input-group';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = inputPlaceholder;
+                inputGroup.appendChild(input);
+                popup.appendChild(inputGroup);
+
+                // 添加操作按钮
+                const confirmBtn = document.createElement('button');
+                confirmBtn.textContent = '确定';
+                confirmBtn.className = 'evp-confirm';
+                confirmBtn.addEventListener('click', () => {
+                    if (input.value.trim()) {
+                        window.open(input.value.trim());
+                    }
+                    this.hidePopup();
+                });
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = '取消';
+                cancelBtn.className = 'evp-cancel';
+                cancelBtn.addEventListener('click', () => this.hidePopup());
+
+                popup.appendChild(confirmBtn);
+                popup.appendChild(cancelBtn);
+
+                // 添加到页面
+                document.body.appendChild(popup);
+                
+                // 定位弹窗（防止超出屏幕）
+                const rect = popup.getBoundingClientRect();
+                popup.style.left = `${Math.min(
+                    event.clientX, 
+                    window.innerWidth - rect.width - 10
+                )}px`;
+                popup.style.top = `${Math.min(
+                    event.clientY, 
+                    window.innerHeight - rect.height - 10
+                )}px`;
+
+                // 点击外部关闭
+                this.currentPopup = popup;
+                setTimeout(() => {
+                    document.addEventListener('click', this.handleOutsideClick, { once: true });
+                }, 100);
+            }
+
+            // 点击弹窗外部关闭
+            handleOutsideClick = (e) => {
+                if (this.currentPopup && !this.currentPopup.contains(e.target)) {
+                    this.hidePopup();
+                }
+            };
+
+            // 隐藏弹窗
+            hidePopup() {
+                if (this.currentPopup) {
+                    document.body.removeChild(this.currentPopup);
+                    this.currentPopup = null;
+                }
+            }
+
+            // 注入CSS样式
+            injectStyles() {
+                const style = document.createElement('style');
+                style.textContent = `
+                    .evp-popup {
+                        position: fixed;
+                        background: #fff;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                        border-radius: 8px;
+                        padding: 15px;
+                        z-index: 10000;
+                        animation: fadeIn 0.2s ease-out;
+                    }
+                    @keyframes fadeIn { from { opacity: 0; } }
+                    .evp-input-group { 
+                        margin: 10px 0; 
+                        padding: 10px 0;
+                        border-top: 1px solid #eee;
+                        border-bottom: 1px solid #eee;
+                    }
+                    .evp-input-group input {
+                        width: 100%;
+                        padding: 8px;
+                        box-sizing: border-box;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // 使用示例 - 页面加载后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            const player = new EnhancedVideoPlayer({
+                // 可以在这里覆盖默认配置
+                longPress: {
+                    buttons: [
+                        { text: "访问官网", url: "https://www.baidu.com" },
+                        { text: "观看教程", url: "https://tutorial.baidu.com" }
+                    ],
+                    inputPlaceholder: "输入网址..."
+                }
+            });
+            
+            console.log('播放器已初始化，长按视频试试吧！');
+        });
+    </script>
+</body>
+</html>
